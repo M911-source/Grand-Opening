@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Grand Opening – GenZ Mastery Agency (Scheduled + Early Unlock)</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+  <style>
+    :root { --gold:#ffcc00; --dark:#1a1a1a; }
+    html,body { height:100%; margin:0; }
+    body {
+      margin:0;
+      overflow:hidden;
+      font-family:'Poppins',sans-serif;
+      background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+      color:#fff;
+    }
+    canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+    /* Main UI */
+    #ui-container {
+      position:absolute; inset:0;
+      display:flex; flex-direction:column; justify-content:center; align-items:center;
+      z-index:2; text-align:center; pointer-events:auto;
+    }
+    #fingerprint {
+      width:160px; height:160px; cursor:pointer;
+      filter:drop-shadow(0 0 25px var(--gold));
+      transition:transform .3s, filter .3s;
+    }
+    #fingerprint:hover { transform:scale(1.08); filter:drop-shadow(0 0 40px var(--gold)); }
+    .scan-text { margin-top:10px; font-size:1.25rem; color:var(--gold); animation:pulse 1.2s infinite alternate; }
+    @keyframes pulse { from{opacity:0.6} to{opacity:1} }
+    #countdown-overlay {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      font-size:6rem; color:var(--gold); font-weight:700; display:none; text-shadow:0 0 30px var(--gold); z-index:10;
+    }
+    #grandOpening { opacity:0; transform:scale(.95); transition:all .9s; margin-top:18px; }
+    #grandOpening.show { opacity:1; transform:scale(1); }
+    h1 { font-size:2.6rem; color:var(--gold); text-shadow:0 0 25px var(--gold); margin:0; }
+    h2 { font-size:1.2rem; color:#fff; margin:6px 0; }
+    .team { margin-top:18px; font-size:1rem; color:#ccc; opacity:0; transition:opacity .9s; }
+    .team.show { opacity:1; }
+    .role { color:var(--gold); }
+
+    /* Top-right timer (visible even during lock) */
+    #countdown-top {
+      position:fixed; top:18px; right:20px; z-index:10002;
+      background:rgba(0,0,0,0.45); color:var(--gold); padding:8px 12px; border-radius:8px;
+      font-weight:600; box-shadow:0 4px 18px rgba(0,0,0,0.5);
+    }
+
+    /* Password / schedule overlay */
+    #password-overlay {
+      position:fixed; inset:0; z-index:10000;
+      background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center;
+      padding:20px;
+    }
+    #password-card {
+      width:420px; max-width:94%;
+      background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,204,0,0.12);
+      padding:22px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.6);
+      color:#fff; text-align:center;
+    }
+    #password-card h3 { margin:0 0 8px 0; color:var(--gold); }
+    #schedule-note { color:#ddd; font-size:0.95rem; margin-bottom:8px; }
+    #countdown-to-unlock { margin-top:8px; color:var(--gold); font-weight:700; font-size:1.05rem; }
+    #password-input {
+      width:100%; padding:10px 12px; margin-top:12px; border-radius:8px;
+      background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07);
+      color:#fff; font-size:1rem; outline:none;
+    }
+    #password-submit {
+      margin-top:10px; width:100%; padding:10px 12px; border-radius:8px;
+      background:var(--gold); color:#000; border:none; font-weight:700; cursor:pointer;
+    }
+    #password-error { min-height:18px; margin-top:8px; color:#ff6b6b; font-size:0.95rem; }
+
+    #lock-controls { position:fixed; top:14px; left:14px; z-index:10003; }
+    #lock-btn {
+      background:rgba(255,204,0,0.12); color:var(--gold); border:1px solid rgba(255,204,0,0.16);
+      padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600;
+    }
+
+    @media (max-width:600px){
+      #countdown-overlay { font-size:3rem; }
+      h1 { font-size:1.6rem; }
+      #password-card { width:94%; padding:16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 3D background canvas -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- small top timer visible even while locked -->
+  <div id="countdown-top" aria-live="polite">Calculating...</div>
+
+  <!-- main UI -->
+  <div id="ui-container" aria-hidden="false">
+    <img id="fingerprint" src="https://cdn-icons-png.flaticon.com/512/2889/2889676.png" alt="Fingerprint Scanner" tabindex="0" />
+    <div class="scan-text">Touch to Scan Fingerprint</div>
+
+    <div id="grandOpening" role="region" aria-label="Grand opening details">
+      <h1>🎊 GRAND OPENING CEREMONY 🎊</h1>
+      <h2>Chief Guest: <span style="color:gold;">Dr. Vijay Anand</span></h2>
+      <h2>Presented by <span style="color:#ffcc00;">GenZ Mastery Agency</span></h2>
+
+      <div class="team" id="teamDetails">
+        <p><span class="role">Founder & CEO:</span> Mohamed Abdula</p>
+        <p><span class="role">COO:</span> Mohamed Mufeesh</p>
+        <p><span class="role">CFO:</span> Mohamed Hisham</p>
+        <p><span class="role">Campus Ambassador Coordinators:</span> Azeezunisha & Ashedha</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- small center countdown when scanning -->
+  <div id="countdown-overlay" aria-hidden="true"></div>
+
+  <!-- lock / re-lock button -->
+  <div id="lock-controls"><button id="lock-btn" title="Lock page">🔒 Lock</button></div>
+
+  <!-- overlay: scheduled + early-unlock via password -->
+  <div id="password-overlay" role="dialog" aria-modal="true" aria-label="Scheduled locked">
+    <div id="password-card">
+      <h3>Page Locked — Scheduled Open</h3>
+      <div id="schedule-note">This page is scheduled to open at <strong>Wednesday 08:10</strong>.</div>
+
+      <div id="countdown-to-unlock" aria-live="polite">Calculating...</div>
+
+      <!-- EARLY UNLOCK: enabled immediately so user can enter password before schedule -->
+      <input id="password-input" type="password" inputmode="numeric" maxlength="6" placeholder="Enter password to unlock now" aria-label="Password input" />
+      <button id="password-submit">Unlock</button>
+      <div id="password-error" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- sounds -->
+  <audio id="beepSound" src="https://assets.mixkit.co/sfx/preview/mixkit-sci-fi-click-900.mp3"></audio>
+  <audio id="cheerSound" src="https://assets.mixkit.co/sfx/preview/mixkit-crowd-applause-354.mp3"></audio>
+
+<script>
+/* =========================
+   Config
+   ========================= */
+const TARGET_WEEKDAY = 3; // Wednesday (0=Sun,1=Mon,...)
+const TARGET_HOUR = 8;
+const TARGET_MINUTE = 10;
+const PASSWORD = '1234'; // early-unlock password (client-side)
+
+/* =========================
+   Utility: next occurrence of weekday at hh:mm
+   ========================= */
+function getNextOccurrence(weekday, hour, minute) {
+  const now = new Date();
+  const todayWd = now.getDay();
+  let daysAhead = (weekday - todayWd + 7) % 7;
+  const targetIfToday = new Date(now);
+  targetIfToday.setHours(hour, minute, 0, 0);
+  if (daysAhead === 0 && targetIfToday <= now) daysAhead = 7;
+  const target = new Date(now);
+  target.setDate(now.getDate() + daysAhead);
+  target.setHours(hour, minute, 0, 0);
+  target.setMilliseconds(0);
+  return target;
+}
+
+/* =========================
+   Password + schedule logic (allows early unlock)
+   ========================= */
+(() => {
+  const overlay = document.getElementById('password-overlay');
+  const countdownText = document.getElementById('countdown-to-unlock');
+  const topTimer = document.getElementById('countdown-top');
+  const input = document.getElementById('password-input');
+  const submit = document.getElementById('password-submit');
+  const err = document.getElementById('password-error');
+  const uiContainer = document.getElementById('ui-container');
+  const lockBtn = document.getElementById('lock-btn');
+
+  let scheduled = getNextOccurrence(TARGET_WEEKDAY, TARGET_HOUR, TARGET_MINUTE);
+
+  // If session already unlocked, hide overlay
+  if (sessionStorage.getItem('page-unlocked') === '1') {
+    overlay.style.display = 'none';
+    uiContainer.style.pointerEvents = 'auto';
+    uiContainer.setAttribute('aria-hidden', 'false');
+  } else {
+    overlay.style.display = 'flex';
+    uiContainer.style.pointerEvents = 'none';
+    uiContainer.setAttribute('aria-hidden', 'true');
+  }
+
+  function formatRemaining(diffMs) {
+    const secs = Math.floor(diffMs / 1000) % 60;
+    const mins = Math.floor(diffMs / (1000 * 60)) % 60;
+    const hrs  = Math.floor(diffMs / (1000 * 60 * 60)) % 24;
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const parts = [];
+    if (days > 0) parts.push(days + 'd');
+    parts.push(String(hrs).padStart(2,'0') + 'h');
+    parts.push(String(mins).padStart(2,'0') + 'm');
+    parts.push(String(secs).padStart(2,'0') + 's');
+    return parts.join(' ');
+  }
+
+  function updateCountdown() {
+    const now = new Date();
+    if (now >= scheduled) {
+      // scheduled reached -> unlock automatically
+      sessionStorage.setItem('page-unlocked', '1');
+      overlay.style.display = 'none';
+      uiContainer.style.pointerEvents = 'auto';
+      uiContainer.setAttribute('aria-hidden', 'false');
+
+      topTimer.textContent = 'Opened 🎉';
+      countdownText.textContent = 'Opened — Enjoy!';
+      try { document.getElementById('cheerSound').play(); } catch(e){}
+      confetti({ particleCount: 40, spread: 60, origin: { x:0.5, y:0.3 } });
+      clearInterval(intervalId);
+      return;
+    }
+    const diff = scheduled - now;
+    const text = 'Opens in: ' + formatRemaining(diff);
+    topTimer.textContent = text;
+    countdownText.textContent = text;
+  }
+
+  // run immediately and every second
+  updateCountdown();
+  const intervalId = setInterval(updateCountdown, 1000);
+
+  // Early unlock by password (works any time)
+  function tryPasswordUnlock() {
+    const val = input.value.trim();
+    if (!val) {
+      err.textContent = 'முதலில் password வைத் தட்டவும்'; // "Enter password first"
+      return;
+    }
+    if (val === PASSWORD) {
+      err.textContent = '';
+      sessionStorage.setItem('page-unlocked', '1');
+      overlay.style.display = 'none';
+      uiContainer.style.pointerEvents = 'auto';
+      uiContainer.setAttribute('aria-hidden', 'false');
+
+      topTimer.textContent = 'Opened 🎉';
+      countdownText.textContent = 'Opened — Enjoy!';
+      try { document.getElementById('cheerSound').play(); } catch(e){}
+      confetti({ particleCount: 40, spread: 60, origin: { x:0.5, y:0.3 } });
+      clearInterval(intervalId);
+    } else {
+      err.textContent = 'தவறான password. மீண்டும் முயலவும்.'; // "Incorrect password"
+      input.animate([{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0)'}], { duration:220 });
+      input.focus();
+    }
+  }
+
+  submit.addEventListener('click', tryPasswordUnlock);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryPasswordUnlock(); });
+
+  // Manual re-lock button (clears session unlocked)
+  lockBtn.addEventListener('click', () => {
+    sessionStorage.removeItem('page-unlocked');
+    scheduled = getNextOccurrence(TARGET_WEEKDAY, TARGET_HOUR, TARGET_MINUTE);
+    overlay.style.display = 'flex';
+    uiContainer.style.pointerEvents = 'none';
+    uiContainer.setAttribute('aria-hidden', 'true');
+    updateCountdown();
+  });
+
+  // Minimal focus trap: keep focus in overlay while visible
+  document.addEventListener('focusin', (e) => {
+    if (overlay.style.display !== 'none' && !overlay.contains(e.target)) {
+      e.stopPropagation();
+      input.focus();
+    }
+  });
+})();
+
+
+/* =========================
+   Three.js background + UI interactions
+   ========================= */
+(function(){
+  const canvas = document.getElementById('bg-canvas');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.position.z = 6;
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+  scene.add(ambientLight);
+  const pointLight = new THREE.PointLight(0xffcc00, 2, 100);
+  pointLight.position.set(2,3,4);
+  scene.add(pointLight);
+
+  const loader = new THREE.TextureLoader();
+  const marbleTexture = loader.load('https://upload.wikimedia.org/wikipedia/commons/2/2c/Marble_Texture_White.jpg');
+  const geom = new THREE.SphereGeometry(2.5, 64, 64);
+  const mat = new THREE.MeshPhysicalMaterial({ map: marbleTexture, metalness:0.4, roughness:0.3, clearcoat:1, clearcoatRoughness:0.1 });
+  const sphere = new THREE.Mesh(geom, mat);
+  scene.add(sphere);
+
+  const particles = new THREE.Group();
+  for (let i=0;i<120;i++){
+    const g = new THREE.SphereGeometry(0.04,6,6);
+    const m = new THREE.MeshBasicMaterial({ color:0xffcc00 });
+    const p = new THREE.Mesh(g,m);
+    p.position.set((Math.random()-0.5)*12, (Math.random()-0.5)*8, (Math.random()-0.5)*10);
+    particles.add(p);
+  }
+  scene.add(particles);
+
+  function animate(){ requestAnimationFrame(animate); sphere.rotation.y += 0.002; particles.rotation.y += 0.0015; renderer.render(scene,camera); }
+  animate();
+
+  // Fingerprint scan interaction
+  const fingerprint = document.getElementById('fingerprint');
+  const countdownOverlay = document.getElementById('countdown-overlay');
+
+  fingerprint.addEventListener('click', () => {
+    // if locked, ignore clicks
+    if (document.getElementById('password-overlay').style.display !== 'none') return;
+
+    fingerprint.style.filter = 'drop-shadow(0 0 50px var(--gold))';
+    document.querySelector('.scan-text').textContent = 'Scanning...';
+    document.querySelector('.scan-text').style.color = '#ffcc00';
+    try { document.getElementById('beepSound').play(); } catch(e){}
+
+    countdownOverlay.style.display = 'block';
+    let count = 3;
+    countdownOverlay.textContent = count;
+
+    const iv = setInterval(() => {
+      count--;
+      if (count > 0) {
+        countdownOverlay.textContent = count;
+      } else {
+        clearInterval(iv);
+        countdownOverlay.style.display = 'none';
+        document.querySelector('.scan-text').textContent = 'Access Granted ✅';
+        document.getElementById('grandOpening').classList.add('show');
+        try { document.getElementById('cheerSound').play(); } catch(e){}
+        const duration = 5 * 1000;
+        const end = Date.now() + duration;
+        (function frame(){
+          confetti({ particleCount:6, angle:60, spread:55, origin:{ x:0 } });
+          confetti({ particleCount:6, angle:120, spread:55, origin:{ x:1 } });
+          if (Date.now() < end) requestAnimationFrame(frame);
+        })();
+        setTimeout(()=>{ document.getElementById('teamDetails').classList.add('show'); }, 600);
+      }
+    }, 1000);
+  });
+
+  fingerprint.setAttribute('tabindex','0');
+  fingerprint.addEventListener('keydown',(e)=> { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fingerprint.click(); } });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+})();
+
+</script>
+</body>
+</html>
